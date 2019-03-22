@@ -233,7 +233,6 @@ class TempProcessor(object):
 
     def get_labels(self):
         """See base class."""
-
         return ["0", "1"]
 
     def _read_tsv(self, input_file):
@@ -654,39 +653,6 @@ def get_eval(pred_result, real_labels, label_list, max_seq_length):
     print(classification_report(real_labels_, pred_labels))
 
 
-def predict_template(path):
-    abstracts = []
-    templates = []
-    tokenizer = tokenization.FullTokenizer(
-        vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
-
-    with open(os.path.join(FLAGS.data_dir,'test.txt')) as f:
-        lines = f.readlines()
-        for line in lines:
-            if len(line) > 1:
-                tmp = json.loads(line)
-                abstracts.extend(tmp['abstract_text'])
-                templates.extend(tmp['abstract_template'])
-    predict_results = ''
-    with open(path) as f:
-        results = f.readlines()
-        for i in range(len(results)):
-            predict_results+=abstracts[i]+'\n'
-            predict_results+=templates[i]+'\n'
-            tmp = results[i].split()
-            res = ''
-            words = tokenizer.tokenize(abstracts[i])
-            # print(' '.join(words))
-            for j in range(1,min(len(words),len(tmp))):
-                if tmp[j] == '1':
-                    res += words[j-1]+' '
-                else:
-                    res += 'xxx'+' '
-            predict_results+=res+'\n\n'
-    with tf.gfile.GFile(os.path.join(FLAGS.output_dir,'predict_template_results.txt'),"w") as writer:
-        writer.write(predict_results)
-
-
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -822,7 +788,7 @@ def main(_):
             early_stop = False
 
             eval_result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
-            output_eval_file = os.path.join(FLAGS.output_dir, "eval_template_results.txt")
+            output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
             with tf.gfile.GFile(output_eval_file, "a") as writer:
                 tf.logging.info("***** Eval results *****")
                 for key in sorted(eval_result.keys()):
@@ -867,7 +833,7 @@ def main(_):
 
         result = estimator.predict(input_fn=predict_input_fn)
 
-        output_predict_file = os.path.join(FLAGS.output_dir, "predict_template_results.tsv")
+        output_predict_file = os.path.join(FLAGS.output_dir, "test_template_results.tsv")
         with tf.gfile.GFile(output_predict_file, "w") as writer:
             num_written_lines = 0
             tf.logging.info("***** Predict results *****")
@@ -882,8 +848,6 @@ def main(_):
                 writer.write(output_line)
                 num_written_lines += 1
         assert num_written_lines == num_actual_predict_examples
-        predict_template(output_predict_file)
-
 
 
 if __name__ == "__main__":

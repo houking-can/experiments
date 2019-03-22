@@ -25,6 +25,8 @@ import modeling
 import optimization
 import tokenization
 import tensorflow as tf
+import time
+import re
 
 flags = tf.flags
 
@@ -77,7 +79,7 @@ flags.DEFINE_bool(
 
 flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
-flags.DEFINE_integer("eval_batch_size", 4, "Total batch size for eval.")
+flags.DEFINE_integer("eval_batch_size", 16, "Total batch size for eval.")
 
 flags.DEFINE_integer("predict_batch_size", 1, "Total batch size for predict.")
 
@@ -91,10 +93,10 @@ flags.DEFINE_float(
     "Proportion of training to perform linear learning rate warmup for. "
     "E.g., 0.1 = 10% of training.")
 
-flags.DEFINE_integer("save_checkpoints_steps", 1000,
+flags.DEFINE_integer("save_checkpoints_steps", 300,
                      "How often to save the model checkpoint.")
 
-flags.DEFINE_integer("iterations_per_loop", 1000,
+flags.DEFINE_integer("iterations_per_loop", 300,
                      "How many steps to make in each estimator call.")
 
 flags.DEFINE_bool("use_tpu", False, "Whether to use TPU or GPU/CPU.")
@@ -122,6 +124,8 @@ tf.flags.DEFINE_string("master", None, "[Optional] TensorFlow master URL.")
 flags.DEFINE_integer(
     "num_tpu_cores", 8,
     "Only used if `use_tpu` is True. Total number of TPU cores to use.")
+
+flags.DEFINE_bool('should_early_stop',False,'whether to early stop')
 
 
 class InputExample(object):
@@ -233,7 +237,7 @@ class AbsProcessor(object):
         for (i, line) in enumerate(lines):
             # Only the test set has a header
             guid = "%s-%s" % (set_type, i)
-            
+
             text_a = tokenization.convert_to_unicode(line[0])
             label = tokenization.convert_to_unicode(line[1])
             examples.append(
@@ -246,11 +250,11 @@ class AbsProcessor(object):
             reader = f.readlines()
             lines = []
             for line in reader:
-            	if len(line)>1:
-	                tmp = json.loads(line)
-	                labels = tmp["label"].split()
-	                for i in range(len(tmp["abstract_text"])):
-	                    lines.append((tmp["abstract_text"][i], labels[i]))
+                if len(line) > 1:
+                    tmp = json.loads(line)
+                    labels = tmp["label"].split()
+                    for i in range(len(tmp["abstract_text"])):
+                        lines.append((tmp["abstract_text"][i], labels[i]))
             return lines
 
 
@@ -660,6 +664,28 @@ def convert_examples_to_features(examples, label_list, max_seq_length,
     return features
 
 
+def predict_sentences(path):
+    category = ['background', 'problem', 'objective', 'method', 'result','conclusion', 'other']
+    abstracts = []
+    with open(os.path.join(FLAGS.data_dir,'test.txt')) as f:
+        lines = f.readlines()
+        for line in lines:
+            if len(line) > 1:
+                tmp = json.loads(line)
+                abstracts.extend(tmp['abstract_text'])
+
+    classify_results = ""
+    with open(path) as f:
+        results = f.readlines()
+        for i in range(len(results)):
+            classify_results+=abstracts[i]+'\n'
+            tmp = results[i].split()
+            x = [float(each) for each in tmp]
+            classify_results +=category[x.index(max(x))]+'\n\n'
+
+    with tf.gfile.GFile(os.path.join(FLAGS.output_dir,'predict_classify_results.txt'),"w") as writer:
+        writer.write(classify_results)
+
 def main(_):
     tf.logging.set_verbosity(tf.logging.INFO)
 
@@ -772,35 +798,62 @@ def main(_):
         file_based_convert_examples_to_features(
             eval_examples, label_list, FLAGS.max_seq_length, tokenizer, eval_file)
 
-        tf.logging.info("***** Running evaluation *****")
-        tf.logging.info("  Num examples = %d (%d actual, %d padding)",
-                        len(eval_examples), num_actual_eval_examples,
-                        len(eval_examples) - num_actual_eval_examples)
-        tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
+        accuracy = 0
+        checkpoint = -1
+        while (True):
+            file_names = os.listdir(FLAGS.output_dir)
+            max_step = -1
+            for name in file_names:
+                flag = re.findall('model.ckpt-(.*).index', name)
+                if flag != []: max_step = max(max_step, int(flag[0]))
+            if max_step <= checkpoint:
+                time.sleep(30)
+                continue
+            checkpoint = max_step
+            early_stop = False
 
-        # This tells the estimator to run through the entire set.
-        eval_steps = None
-        # However, if running eval on the TPU, you will need to specify the
-        # number of steps.
-        if FLAGS.use_tpu:
-            assert len(eval_examples) % FLAGS.eval_batch_size == 0
-            eval_steps = int(len(eval_examples) // FLAGS.eval_batch_size)
+            tf.logging.info("***** Running evaluation *****")
+            tf.logging.info("  Num examples = %d (%d actual, %d padding)",
+                            len(eval_examples), num_actual_eval_examples,
+                            len(eval_examples) - num_actual_eval_examples)
+            tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
 
-        eval_drop_remainder = True if FLAGS.use_tpu else False
-        eval_input_fn = file_based_input_fn_builder(
-            input_file=eval_file,
-            seq_length=FLAGS.max_seq_length,
-            is_training=False,
-            drop_remainder=eval_drop_remainder)
+            # This tells the estimator to run through the entire set.
+            eval_steps = None
+            # However, if running eval on the TPU, you will need to specify the
+            # number of steps.
+            if FLAGS.use_tpu:
+                assert len(eval_examples) % FLAGS.eval_batch_size == 0
+                eval_steps = int(len(eval_examples) // FLAGS.eval_batch_size)
 
-        result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
+            eval_drop_remainder = True if FLAGS.use_tpu else False
+            eval_input_fn = file_based_input_fn_builder(
+                input_file=eval_file,
+                seq_length=FLAGS.max_seq_length,
+                is_training=False,
+                drop_remainder=eval_drop_remainder)
 
-        output_eval_file = os.path.join(FLAGS.output_dir, "eval_results.txt")
-        with tf.gfile.GFile(output_eval_file, "w") as writer:
-            tf.logging.info("***** Eval results *****")
-            for key in sorted(result.keys()):
-                tf.logging.info("  %s = %s", key, str(result[key]))
-                writer.write("%s = %s\n" % (key, str(result[key])))
+            result = estimator.evaluate(input_fn=eval_input_fn, steps=eval_steps)
+
+            output_eval_file = os.path.join(FLAGS.output_dir, "eval_classify_results.txt")
+            with tf.gfile.GFile(output_eval_file, "w+") as writer:
+                tf.logging.info("***** Eval results *****")
+                for key in sorted(result.keys()):
+                    tf.logging.info("  %s = %s", key, str(result[key]))
+                    writer.write("%s = %s\n" % (key, str(result[key])))
+                    if key == 'eval_accuracy':
+                        if result[key] <= accuracy:
+                            early_stop = True
+                        else:
+                            accuracy = result[key]
+                if early_stop and FLAGS.should_early_stop:
+                    tf.logging.info("should early stop!")
+                    if os.path.exists("./train_pid"):
+                        with open("./train_pid") as f:
+                            pid = f.readlines()[0][:-1]
+                            sh = 'pstree  %s  -p | awk -F\"[()]\" \'{print $2}\'| xargs kill -9' % pid
+                            os.system(sh)
+                    break
 
     if FLAGS.do_predict:
         predict_examples = processor.get_test_examples(FLAGS.data_dir)
@@ -833,7 +886,7 @@ def main(_):
 
         result = estimator.predict(input_fn=predict_input_fn)
 
-        output_predict_file = os.path.join(FLAGS.output_dir, "test_results.tsv")
+        output_predict_file = os.path.join(FLAGS.output_dir, "predict_classify_results.tsv")
         with tf.gfile.GFile(output_predict_file, "w") as writer:
             num_written_lines = 0
             tf.logging.info("***** Predict results *****")
@@ -847,7 +900,7 @@ def main(_):
                 writer.write(output_line)
                 num_written_lines += 1
         assert num_written_lines == num_actual_predict_examples
-
+        predict_sentences(output_predict_file)
 
 if __name__ == "__main__":
     flags.mark_flag_as_required("data_dir")
