@@ -3,6 +3,7 @@ import random
 import json
 import re
 from nltk.tokenize import sent_tokenize, word_tokenize
+import copy
 
 
 def iter_files(path):
@@ -39,13 +40,13 @@ def check_error(path):
         paper = json.load(open(file))
         abstract = paper['abstract_text']
         template = paper['abstract_template']
-
+        wrong = []
         for i in range(len(abstract)):
-            wrong = []
+
             if len(abstract[i]) != len(template[i]):
                 wrong.append(i)
         if len(wrong) > 0:
-            print("%s wrong label: %s !" % (os.path.basename(file), ' '.join(wrong)))
+            print("%s wrong label: %s !" % (os.path.basename(file), ' '.join([str(each) for each in wrong])))
     print("check error done!")
 
 
@@ -64,15 +65,16 @@ def clean(path):
     print('clean done!')
 
 
-def write_dataset(files,filename):
+def write_dataset(files, filename):
     if not os.path.exists('./data/'):
         os.makedirs('./data/')
-    with open('./data/'+filename,'w') as f:
+    with open('./data/' + filename, 'w') as f:
         for file in files:
             paper = json.load(open(file))
             tmp = json.dumps(paper)
-            f.write(tmp+'\n')
+            f.write(tmp + '\n')
             f.flush()
+
 
 def split_data(path, ratio=0.9):
     """generate dataset train eval test"""
@@ -82,11 +84,12 @@ def split_data(path, ratio=0.9):
     eval_num = int(len(files) * (1 - ratio) / 2)
     test_num = len(files) - train_num - eval_num
 
-    write_dataset(files[:train_num],'train.txt')
-    write_dataset(files[train_num:train_num + eval_num],'dev.txt')
-    write_dataset(files[-test_num:],'test.txt')
+    write_dataset(files[:train_num], 'train.txt')
+    write_dataset(files[train_num:train_num + eval_num], 'dev.txt')
+    write_dataset(files[-test_num:], 'test.txt')
 
     print("split data done!")
+
 
 def combine_data(path):
     files = list(iter_files(path))
@@ -100,11 +103,11 @@ def combine_data(path):
             template = get_sentences(paper['abstract_template'])
             paper['abstract_text'] = abstract
             paper['introduction'] = introduction
-            paper['abstract_template'] =template
+            paper['abstract_template'] = template
             tmp = json.dumps(paper)
             f.write(tmp + '\n')
             f.flush()
-    with open('./data/words_%d' % len(files),'w') as f:
+    with open('./data/words_%d' % len(files), 'w') as f:
         for file in files:
             paper = json.load(open(file))
             tmp = json.dumps(paper)
@@ -112,10 +115,57 @@ def combine_data(path):
             f.flush()
     print('combine data done!')
 
+
+def modify_pre(path):
+    files = list(iter_files(path))
+    samples_remove = ['\"', '\'', '\\', '/', '[', ']', '{', '}', '(', ')']
+    for file in files:
+        paper = json.load(open(file))
+        abstract = paper['abstract_text']
+        template = paper['abstract_template']
+
+        for i in range(len(abstract)):
+            j = 0
+            while j < len(abstract[i]):
+                if abstract[i][j] in samples_remove:
+                    abstract[i].pop(j)
+                    template[i].pop(j)
+                    continue
+                j += 1
+
+            j = 0
+            while j < len(abstract[i]):
+                if '-' in abstract[i][j]:
+                    tmp = abstract[i][j].split('-')
+                    tmp = tmp[::-1]
+                    abstract[i].pop(j)
+                    for each in tmp:
+                        abstract[i].insert(j, each)
+                    if template[i][j] == "XXX":
+                        for _ in range(len(tmp) - 1):
+                            template[i].insert(j, "XXX")
+                    else:
+                        template[i].pop(j)
+                        for each in tmp:
+                            template[i].insert(j, each)
+                j += 1
+            assert len(abstract[i]) == len(template[i])
+
+        paper['abstract_text'] = abstract
+        paper['abstract_template'] = template
+        introduction = '\n'.join(get_sentences(paper['introduction']))
+        paper['introduction'] = remove_samples(introduction)
+        json.dump(paper,open(file,'w'))
+    print('modify previous done!')
+
+
 if __name__ == "__main__":
     save_path = './save'
     clean_path = './v1'
-    # clean(clean_path)
+    clean(clean_path)
     check_error(save_path)
+    modify_pre(save_path)
+    check_error(save_path)
+
     split_data(save_path)
     combine_data(save_path)
