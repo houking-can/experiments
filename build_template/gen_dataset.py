@@ -71,6 +71,12 @@ def write_dataset(files, filename):
     with open('./data/' + filename, 'w') as f:
         for file in files:
             paper = json.load(open(file))
+            abstract = get_sentences(paper['abstract_text'])
+            introduction = get_sentences(paper['introduction'])
+            template = get_sentences(paper['abstract_template'])
+            paper['abstract_text'] = abstract
+            paper['introduction'] = introduction
+            paper['abstract_template'] = template
             tmp = json.dumps(paper)
             f.write(tmp + '\n')
             f.flush()
@@ -162,10 +168,10 @@ def modify_pre(path):
 if __name__ == "__main__":
     save_path = './save'
     clean_path = './v1'
-    clean(clean_path)
-    check_error(save_path)
-    modify_pre(save_path)
-    check_error(save_path)
+    # clean(clean_path)
+    # check_error(save_path)
+    # modify_pre(save_path)
+    # check_error(save_path)
 
     split_data(save_path)
-    combine_data(save_path)
+    # combine_data(save_path)
