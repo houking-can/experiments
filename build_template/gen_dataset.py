@@ -3,7 +3,7 @@ import random
 import json
 import re
 from nltk.tokenize import sent_tokenize, word_tokenize
-import copy
+
 
 
 def iter_files(path):
@@ -23,12 +23,16 @@ def get_sentences(text):
 
 
 def remove_samples(text):
-    text = re.sub('[-|\\\\|{|}|(|)|\[|\]|\"|\'|/]', ' ', text)
-    text = re.sub('e.g\s*.', ' e.g., ', text)
-    text = re.sub('etc\s*.', ' etc.', text)
-    text = re.sub('et\s*al\s*.\s*,', ' et al., ', text)
+    text = re.sub('[-|\\\\|\{|\}|\(|\)|\[|\]|\"|\'|/]', ' ', text)
+    text = re.sub('e\s*\.g\s*\.\s*,', ' e.g., ', text)
+    text = re.sub('e\s*\.g\s*\.\s*', ' e.g., ', text)
+    text = re.sub('etc\s*\.', ' etc. ', text)
+    text = re.sub('et\s*al\s*\.\s*,', ' et al., ', text)
+    text = re.sub('i\s*\.e\s*\.\s*,',' i.e., ',text)
     text = re.sub('[;|:]', ' . \n ', text)
-    text = sent_tokenize(text)
+    text = re.sub(',[\s|,]*,',' , ',text)
+
+    text = text.split('\n')
     text = [word_tokenize(each) for each in text]
     return text
 
@@ -37,9 +41,12 @@ def check_error(path):
     """check sentences and template is match in length"""
     files = iter_files(path)
     for file in files:
+
         paper = json.load(open(file))
         abstract = paper['abstract_text']
         template = paper['abstract_template']
+        # print(os.path.basename(file))
+        # print(len(abstract),len(template))
         wrong = []
         for i in range(len(abstract)):
 
@@ -47,6 +54,9 @@ def check_error(path):
                 wrong.append(i)
         if len(wrong) > 0:
             print("%s wrong label: %s !" % (os.path.basename(file), ' '.join([str(each) for each in wrong])))
+        tmp = paper['label'].split()
+        if len(abstract)!=len(tmp):
+            print("%s skip label" % os.path.basename(file))
     print("check error done!")
 
 
@@ -122,7 +132,7 @@ def combine_data(path):
     print('combine data done!')
 
 
-def modify_pre(path):
+def modify_save_template(path):
     files = list(iter_files(path))
     samples_remove = ['\"', '\'', '\\', '/', '[', ']', '{', '}', '(', ')']
     for file in files:
@@ -162,16 +172,26 @@ def modify_pre(path):
         introduction = '\n'.join(get_sentences(paper['introduction']))
         paper['introduction'] = remove_samples(introduction)
         json.dump(paper,open(file,'w'))
-    print('modify previous done!')
+    print('modify template done!')
 
+def modify_save_introduction(path):
+    files = list(iter_files(path))
+    for file in files:
+        paper = json.load(open(file))
+        # introduction =
+        name = os.path.basename(file)
+        tmp = json.load(open('./v1/' + name))['introduction']
+        paper['introduction'] = tmp
+        json.dump(paper, open(file, 'w'))
+    print("modify introduction done!")
 
 if __name__ == "__main__":
     save_path = './save'
     clean_path = './v1'
     # clean(clean_path)
-    # check_error(save_path)
-    # modify_pre(save_path)
+    # modify_save_introduction(save_path)
     # check_error(save_path)
 
-    split_data(save_path)
-    # combine_data(save_path)
+    # check_error(save_path)
+    # split_data(save_path)
+    combine_data(r'C:\Users\Houking\Desktop\experiment_data\old\clean1')
