@@ -1,8 +1,0 @@
-C:\Users\Houking\Desktop\PDF2XML\PDF2XML\bin\Release\PDF2XML.exe.config
-C:\Users\Houking\Desktop\PDF2XML\PDF2XML\bin\Release\PDF2XML.exe
-C:\Users\Houking\Desktop\PDF2XML\PDF2XML\bin\Release\PDF2XML.pdb
-C:\Users\Houking\Desktop\PDF2XML\PDF2XML\obj\Release\Interop.Acrobat.dll
-C:\Users\Houking\Desktop\PDF2XML\PDF2XML\obj\Release\PDF2XML.csproj.ResolveComReference.cache
-C:\Users\Houking\Desktop\PDF2XML\PDF2XML\obj\Release\PDF2XML.csproj.CoreCompileInputs.cache
-C:\Users\Houking\Desktop\PDF2XML\PDF2XML\obj\Release\PDF2XML.exe
-C:\Users\Houking\Desktop\PDF2XML\PDF2XML\obj\Release\PDF2XML.pdb
