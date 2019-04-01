@@ -1,8 +1,0 @@
-C:\Users\Houking\Desktop\PDF2HTML\PDF2HTML\bin\Debug\PDF2HTML.exe.config
-C:\Users\Houking\Desktop\PDF2HTML\PDF2HTML\bin\Debug\PDF2HTML.exe
-C:\Users\Houking\Desktop\PDF2HTML\PDF2HTML\bin\Debug\PDF2HTML.pdb
-C:\Users\Houking\Desktop\PDF2HTML\PDF2HTML\obj\Debug\Interop.Acrobat.dll
-C:\Users\Houking\Desktop\PDF2HTML\PDF2HTML\obj\Debug\PDF2HTML.csproj.ResolveComReference.cache
-C:\Users\Houking\Desktop\PDF2HTML\PDF2HTML\obj\Debug\PDF2HTML.csproj.CoreCompileInputs.cache
-C:\Users\Houking\Desktop\PDF2HTML\PDF2HTML\obj\Debug\PDF2HTML.exe
-C:\Users\Houking\Desktop\PDF2HTML\PDF2HTML\obj\Debug\PDF2HTML.pdb
