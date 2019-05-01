@@ -15,6 +15,9 @@ from time import time
 from tqdm import tqdm
 from utils import eval_rouge
 import time
+import threading
+import re
+import shutil
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [INFO] %(message)s')
 parser = argparse.ArgumentParser(description='extractive summary')
@@ -43,12 +46,12 @@ parser.add_argument('-seq_trunc',type=int,default=50)
 parser.add_argument('-max_norm',type=float,default=1.0)
 # test
 parser.add_argument('-load_dir',type=str,default='checkpoints/RNN_RNN_seed_1.pt')
-parser.add_argument('-test_dir',type=str,default='data/test.json')
+parser.add_argument('-test_dir',type=str,default='data/int/test.json')
 parser.add_argument('-ref',type=str,default='outputs/refs')
 parser.add_argument('-dec',type=str,default='outputs/dec')
-parser.add_argument('-topk',type=int,default=3)
+parser.add_argument('-topk',type=int,default=5)
 # device
-parser.add_argument('-device',type=int,default=3)
+parser.add_argument('-device',type=int,default=4)
 # option
 parser.add_argument('-test',action='store_true')
 parser.add_argument('-debug',default=True)
@@ -124,18 +127,20 @@ def test():
     file_id = 1
     for batch in tqdm(test_iter):
         features,_,summaries,doc_lens = vocab.make_features(batch)
-        t1 = time()
+        t1 = time.time()
         if use_gpu:
             probs = net(Variable(features).cuda(), doc_lens)
         else:
             probs = net(Variable(features), doc_lens)
-        t2 = time()
+        t2 = time.time()
         time_cost += t2 - t1
         start = 0
         for doc_id,doc_len in enumerate(doc_lens):
             stop = start + doc_len
             prob = probs[start:stop]
-            topk = min(args.topk,doc_len)
+            tmp = summaries[doc_id].strip('\n')
+            topk = len(tmp.split('\n'))
+            topk = min(topk,doc_len)
             topk_indices = prob.topk(topk)[1].cpu().data.numpy()
             topk_indices.sort()
             doc = batch['doc'][doc_id].split('\n')[:doc_len]
@@ -156,11 +161,49 @@ def rouge():
     dec_pattern = r'(\d+).dec'
     ref_pattern = '#ID#.ref'
     output = eval_rouge(dec_pattern, args.dec, ref_pattern, args.ref)
-    print(output)
-    with open('outputs/rouge_%f.txt' % (time.time()), 'w') as f:
+    # print(output)
+    with open('outputs/rouge_%d_%f.txt' % (args.topk,time.time()), 'w') as f:
         f.write(output)
+    return output
 
 
 if __name__=='__main__':
-    test()
-    rouge()
+    last_time = None
+    best_score = 0
+    if not os.path.exists('./checkpoints/'):
+        os.makedirs('./checkpoints/')
+
+    if os.path.exists('./checkpoints/Best_RNN_RNN_seed_1.pt'):
+
+        test()
+        output = rouge()
+        F = re.findall('Average_F:\s*(0\.\d{5})', output)
+        f_score = 0
+        for each in F: f_score += float(each)
+        best_score = f_score/3
+        print("Exist Best Model:")
+        print(output)
+
+    while True:
+        if not os.path.exists(args.load_dir):
+            time.sleep(30)
+        else:
+            cur_time = os.stat(args.load_dir).st_mtime
+            if cur_time!=last_time:
+                test()
+                output = rouge()
+                F = re.findall('Average_F:\s*(0\.\d{5})',output)
+                f_score = 0
+                for each in F:f_score += float(each)
+                if f_score/3>best_score:
+                    shutil.copy(args.load_dir,"./checkpoints/Best_RNN_RNN_seed_1.pt")
+                    best_score = f_score/3
+                    print(output)
+                else:
+                    print('Not the best!')
+                last_time = cur_time
+
+            else:
+                time.sleep(30)
+
+

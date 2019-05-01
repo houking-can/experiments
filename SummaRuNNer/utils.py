@@ -52,7 +52,7 @@ class Vocab():
         for doc, label in zip(batch['doc'], batch['labels']):
             sents = doc.split(split_token)
             labels = label.split(split_token)
-            labels = [int(l) for l in labels]
+            labels = [float(l) for l in labels]
             max_sent_num = min(doc_trunc, len(sents))
             sents = sents[:max_sent_num]
             labels = labels[:max_sent_num]
@@ -199,7 +199,7 @@ def minus(src, des):
         except Exception as e:
             print(e)
 
-def split(src,des,ratio=0.94):
+def split(src,des,ratio=0.90):
     files = list(iter_files(src))
     random.shuffle(files)
     len_train = int(len(files)*ratio)
@@ -246,5 +246,3 @@ def make_vocab(input, output):
               'wb') as vocab_file:
         pkl.dump(vocab_counter, vocab_file)
     print("Finished writing vocab file")
-
-
